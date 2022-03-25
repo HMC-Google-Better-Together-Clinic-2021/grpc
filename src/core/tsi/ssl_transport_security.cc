@@ -214,6 +214,34 @@ static const char* ssl_error_string(int error) {
   }
 }
 
+#if OPENSSL_VERSION_NUMBER >= 0x10101000 && !defined(LIBRESSL_VERSION_NUMBER)
+extern "C" {
+  static FILE* output_file = nullptr;
+  void experimental_tls_key_logger_append_to_file(const SSL* ssl, const char *line) {
+    fprintf(output_file, "%s\n", line);
+    fflush(output_file);
+}
+} // end extern "C"
+
+void register_tls_keylogger(SSL_CTX* ctx) {
+  if(output_file) {
+    fprintf(stderr, "XXXXXXXXXXXXx Calling register_tls_keylogger again");
+  } else {
+      char* fname = getenv("SSLKEYLOGFILE");
+      if (fname) {
+        output_file = fopen(fname, "a");
+        if(!output_file) {
+          std::abort();
+        }
+      } else {
+        return;
+      }
+  }
+  SSL_CTX_set_keylog_callback(ctx, experimental_tls_key_logger_append_to_file);
+}
+#endif
+
+
 /* TODO(jboeuf): Remove when we are past the debugging phase with this code. */
 static void ssl_log_where_info(const SSL* ssl, int where, int flag,
                                const char* msg) {
@@ -1993,6 +2021,15 @@ tsi_result tsi_create_ssl_client_handshaker_factory_with_options(
     SSL_CTX_sess_set_new_cb(ssl_context,
                             server_handshaker_factory_new_session_callback);
     SSL_CTX_set_session_cache_mode(ssl_context, SSL_SESS_CACHE_CLIENT);
+  }
+
+#if OPENSSL_VERSION_NUMBER >= 0x10101000 && !defined(LIBRESSL_VERSION_NUMBER)
+  register_tls_keylogger(ssl_context);
+#endif
+
+  if (options->session_cache != nullptr || options->key_logger != nullptr) {
+    // Need to set factory at g_ssl_ctx_ex_factory_index
+    SSL_CTX_set_ex_data(ssl_context, g_ssl_ctx_ex_factory_index, impl);
   }
 
   do {
