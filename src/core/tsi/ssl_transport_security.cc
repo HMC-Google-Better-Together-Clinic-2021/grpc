@@ -2027,7 +2027,7 @@ tsi_result tsi_create_ssl_client_handshaker_factory_with_options(
   register_tls_keylogger(ssl_context);
 #endif
 
-  if (options->session_cache != nullptr || options->key_logger != nullptr) {
+  if (options->session_cache != nullptr) {
     // Need to set factory at g_ssl_ctx_ex_factory_index
     SSL_CTX_set_ex_data(ssl_context, g_ssl_ctx_ex_factory_index, impl);
   }
